@@ -3,6 +3,7 @@ package com.tvpointer.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,10 +22,14 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.KeyboardHide
 import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.SettingsRemote
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -32,9 +37,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,9 +69,13 @@ fun RemoteScreen(vm: RemoteViewModel, tvName: String) {
     // The trackpad's gesture handler is created once, so read speed through State.
     val liveSpeed by rememberUpdatedState(speed)
 
+    // Trackpad is the home tab; the remote pad is the second tab.
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+      Column(Modifier.safeDrawingPadding().imePadding()) {
         Column(
-            Modifier.safeDrawingPadding().imePadding().padding(16.dp),
+            Modifier.weight(1f).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // Header
@@ -79,6 +90,9 @@ fun RemoteScreen(vm: RemoteViewModel, tvName: String) {
                 }
             }
 
+            if (tab == 1) {
+                RemotePad(conn, Modifier.weight(1f))
+            } else {
             // Trackpad
             Box(
                 Modifier
@@ -147,7 +161,25 @@ fun RemoteScreen(vm: RemoteViewModel, tvName: String) {
                     )
                 }
             }
+            }
         }
+
+        if (!keyboardOpen) {
+            // safeDrawingPadding already handles the system bar inset.
+            NavigationBar(windowInsets = WindowInsets(0, 0, 0, 0)) {
+                NavigationBarItem(
+                    selected = tab == 0, onClick = { tab = 0 },
+                    icon = { Icon(Icons.Filled.TouchApp, contentDescription = null) },
+                    label = { Text("Trackpad") },
+                )
+                NavigationBarItem(
+                    selected = tab == 1, onClick = { tab = 1 },
+                    icon = { Icon(Icons.Filled.SettingsRemote, contentDescription = null) },
+                    label = { Text("Remote") },
+                )
+            }
+        }
+      }
     }
 }
 

@@ -14,6 +14,15 @@ object HidReports {
     const val KEY_ENTER = 0x28
     const val KEY_BACKSPACE = 0x2A
 
+    // Keyboard arrow keys; Android TV treats these as D-pad Up/Down/Left/Right.
+    const val KEY_RIGHT = 0x4F
+    const val KEY_LEFT = 0x50
+    const val KEY_DOWN = 0x51
+    const val KEY_UP = 0x52
+
+    const val USAGE_MUTE = 0x00E2
+    const val USAGE_VOLUME_UP = 0x00E9
+    const val USAGE_VOLUME_DOWN = 0x00EA
     const val USAGE_AC_HOME = 0x0223
     const val USAGE_AC_BACK = 0x0224
 

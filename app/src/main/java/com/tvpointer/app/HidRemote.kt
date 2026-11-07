@@ -371,18 +371,53 @@ class HidRemote private constructor(private val context: Context) {
     fun press() { heldButtons = 1; mouse(1) }
     fun release() { heldButtons = 0; mouse(0) }
 
+    private fun consumerReport(usage: Int) =
+        byteArrayOf((usage and 0xFF).toByte(), (usage shr 8).toByte())
+
     private fun consumer(usage: Int) {
-        send(HidReports.ID_CONSUMER, byteArrayOf((usage and 0xFF).toByte(), (usage shr 8).toByte()))
+        send(HidReports.ID_CONSUMER, consumerReport(usage))
         send(HidReports.ID_CONSUMER, ByteArray(HidReports.CONSUMER_SIZE))
     }
 
     fun back() = consumer(HidReports.USAGE_AC_BACK)
     fun home() = consumer(HidReports.USAGE_AC_HOME)
+    fun mute() = consumer(HidReports.USAGE_MUTE)
 
     private fun key(usage: Int, shift: Boolean = false) {
         val mod = if (shift) HidReports.MOD_SHIFT else 0
         send(HidReports.ID_KEYBOARD, byteArrayOf(mod.toByte(), 0, usage.toByte(), 0, 0, 0, 0, 0))
         send(HidReports.ID_KEYBOARD, ByteArray(HidReports.KEYBOARD_SIZE))
+    }
+
+    /**
+     * Remote buttons that repeat while held. The TV sees the key go down when the
+     * finger touches and up when it lifts, and repeats it itself in between,
+     * exactly like holding a button on a real remote.
+     */
+    enum class RemoteKey(val consumerUsage: Int = 0, val keyUsage: Int = 0) {
+        UP(keyUsage = HidReports.KEY_UP),
+        DOWN(keyUsage = HidReports.KEY_DOWN),
+        LEFT(keyUsage = HidReports.KEY_LEFT),
+        RIGHT(keyUsage = HidReports.KEY_RIGHT),
+        OK(keyUsage = HidReports.KEY_ENTER),
+        VOLUME_UP(consumerUsage = HidReports.USAGE_VOLUME_UP),
+        VOLUME_DOWN(consumerUsage = HidReports.USAGE_VOLUME_DOWN),
+    }
+
+    fun keyDown(k: RemoteKey) {
+        if (k.consumerUsage != 0) {
+            send(HidReports.ID_CONSUMER, consumerReport(k.consumerUsage))
+        } else {
+            send(HidReports.ID_KEYBOARD, byteArrayOf(0, 0, k.keyUsage.toByte(), 0, 0, 0, 0, 0))
+        }
+    }
+
+    fun keyUp(k: RemoteKey) {
+        if (k.consumerUsage != 0) {
+            send(HidReports.ID_CONSUMER, ByteArray(HidReports.CONSUMER_SIZE))
+        } else {
+            send(HidReports.ID_KEYBOARD, ByteArray(HidReports.KEYBOARD_SIZE))
+        }
     }
 
     fun enter() = key(HidReports.KEY_ENTER)
