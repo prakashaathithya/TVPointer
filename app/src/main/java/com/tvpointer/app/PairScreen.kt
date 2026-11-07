@@ -51,6 +51,8 @@ fun PairScreen(
     onMakeDiscoverable: () -> Unit,
 ) {
     val paired by vm.remote.paired.collectAsStateWithLifecycle()
+    val found by vm.remote.found.collectAsStateWithLifecycle()
+    val searching by vm.remote.searching.collectAsStateWithLifecycle()
 
     Page {
         Text("TV Pointer", style = MaterialTheme.typography.headlineMedium)
@@ -72,14 +74,21 @@ fun PairScreen(
             HidState.Starting -> Busy("Starting mouse mode…")
             is HidState.Ready -> {
                 state.connecting?.let { Busy("Connecting to $it…") }
-                state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                state.error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                    OutlinedButton(onClick = { vm.remote.retry() }) { Text("Try again") }
+                }
+                if (state.connecting == null && state.error == null) {
+                    Text("Mouse mode is on. Your phone is ready to pair.",
+                        color = MaterialTheme.colorScheme.primary)
+                }
             }
             is HidState.Connected -> Unit
         }
 
-        Text("First time: pair with your TV", style = MaterialTheme.typography.titleMedium)
+        Text("Option A: pair from the TV", style = MaterialTheme.typography.titleMedium)
         Steps(
-            "Tap \"Make phone visible\" below and allow it.",
+            "Tap \"Make phone visible\" below and allow it (it stays visible for 5 minutes).",
             "On the TV: Settings → Remotes & Accessories → Pair remote or accessory.",
             "Pick your phone's name on the TV and accept the pairing code on both screens.",
             "The trackpad opens here automatically once the TV connects.",
@@ -88,6 +97,26 @@ fun PairScreen(
             Icon(Icons.Filled.Bluetooth, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text("Make phone visible")
+        }
+
+        Spacer(Modifier.size(8.dp))
+        Text("Option B: find the TV from your phone", style = MaterialTheme.typography.titleMedium)
+        Steps(
+            "On the TV, open Settings → Remotes & Accessories (keep that screen open).",
+            "Tap \"Search for TV\" and pick your TV, then accept the code on both screens.",
+        )
+        Button(enabled = !searching, onClick = { vm.remote.startSearch() }) {
+            Text(if (searching) "Searching…" else "Search for TV")
+        }
+        if (searching) Busy("Looking for nearby Bluetooth devices…")
+        found.forEach { device ->
+            Card(Modifier.fillMaxWidth().clickable { vm.remote.pairAndConnect(device.address) }) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Bluetooth, contentDescription = null)
+                    Spacer(Modifier.width(12.dp))
+                    Text(device.name, style = MaterialTheme.typography.titleSmall)
+                }
+            }
         }
 
         Spacer(Modifier.size(8.dp))

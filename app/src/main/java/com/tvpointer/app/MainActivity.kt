@@ -2,11 +2,7 @@ package com.tvpointer.app
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -31,10 +27,19 @@ class MainActivity : ComponentActivity() {
     private val vm: RemoteViewModel by viewModels()
     private var permissionsGranted by mutableStateOf(false)
 
-    private val neededPermissions: Array<String> =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE)
-        } else emptyArray()
+    /** Without these the app can't work at all. */
+    private val requiredPermissions: Array<String> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) arrayOf(
+            Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.BLUETOOTH_ADVERTISE,
+            Manifest.permission.BLUETOOTH_SCAN,
+        ) else emptyArray()
+
+    /** Nice to have: the notification, and searching for the TV on Android 9-11. */
+    private val optionalPermissions: Array<String> = buildList {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) add(Manifest.permission.ACCESS_FINE_LOCATION)
+    }.toTypedArray()
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -42,51 +47,44 @@ class MainActivity : ComponentActivity() {
         }
 
     private val enableBluetooth =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { vm.remote.start() }
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            checkPermissionsAndStart()
+        }
 
     private val makeDiscoverable =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
 
-    // Refresh the paired list and Bluetooth state as they change.
-    private val btReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (permissionsGranted) vm.remote.start()
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        ContextCompat.registerReceiver(
-            this, btReceiver,
-            IntentFilter().apply {
-                addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
-                addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
-            },
-            ContextCompat.RECEIVER_EXPORTED,
-        )
         setContent {
             AppTheme {
                 if (!permissionsGranted) {
-                    PermissionScreen(onAllow = { permissionLauncher.launch(neededPermissions) })
+                    PermissionScreen(onAllow = {
+                        permissionLauncher.launch(requiredPermissions + optionalPermissions)
+                    })
                 } else {
                     App(vm)
                 }
             }
         }
+        val missingOptional = optionalPermissions.any { !granted(it) }
+        if (requiredPermissions.all(::granted) && missingOptional && savedInstanceState == null) {
+            permissionLauncher.launch(optionalPermissions)
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
         checkPermissionsAndStart()
     }
 
-    override fun onDestroy() {
-        unregisterReceiver(btReceiver)
-        super.onDestroy()
-    }
+    private fun granted(p: String) =
+        ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
 
     private fun checkPermissionsAndStart() {
-        permissionsGranted = neededPermissions.all {
-            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
-        }
-        if (permissionsGranted) vm.remote.start()
+        permissionsGranted = requiredPermissions.all(::granted)
+        if (permissionsGranted) RemoteService.start(this)
     }
 
     fun requestEnableBluetooth() =
@@ -94,7 +92,7 @@ class MainActivity : ComponentActivity() {
 
     fun requestDiscoverable() = makeDiscoverable.launch(
         Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
-            .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 180)
+            .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
     )
 
     @Composable
